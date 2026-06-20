@@ -53,42 +53,58 @@
             border-color: #bbb;
         }
 
-        /* 원고지 스타일의 텍스트 박스 */
+        /* 글자 칸들이 정렬되는 영역 */
         #word-display {
             text-align: left;
-            min-height: 300px;
+            min-height: 200px;
             height: auto;
             width: 85%;
             max-width: 900px;
             word-break: keep-all;
-            padding: 40px;
-            border-radius: 10px;
-            background-color: white;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
-            border: 4px solid #e53935;
-            color: #333;
-            font-weight: bold;
+            padding: 20px;
             display: flex;
             flex-wrap: wrap;
-            gap: 0px;
+            gap: 10px;
+            justify-content: flex-start;
+            font-weight: bold;
         }
 
-        /* 원고지 셀 스타일 */
+        /* 정사각형 글자 한 칸 스타일 */
         #word-display .cell {
             display: flex;
             align-items: center;
             justify-content: center;
-            border: 2px solid #ffcdd2;
+            border: 3px solid #ff9999; /* 분홍색 테두리 */
+            background-color: white;   /* 흰색 배경 */
+            color: #333;               /* 진한 회색 글자 */
+            border-radius: 10px;
             aspect-ratio: 1 / 1;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
             box-sizing: border-box;
         }
 
-        /* 띄어쓰기 셀 스타일 */
+        /* 띄어쓰기 칸 스타일 */
         #word-display .cell.space {
-            background-color: #f0f0f0;
+            background-color: #e2e8f0;
+            border: 3px dashed #cbd5e1;
         }
 
-        /* 마이크 버튼 영역 */
+        /* 💡 수정 3: 문장 부호 칸 스타일을 일반 글자 칸과 완전히 통일 */
+        #word-display .cell.punctuation {
+            border: 3px solid #ff9999; 
+            background-color: white;
+            color: #333;
+        }
+
+        /* 온점(.) 격자 칸 내부에서 왼쪽 하단으로 배치하는 스타일 유지 */
+        #word-display .cell.dot-cell {
+            align-items: flex-end;
+            justify-content: flex-start;
+            padding-left: 15%;
+            padding-bottom: 15%;
+        }
+
+        /* 하단 고정 마이크 영역 */
         #bottom-area {
             position: fixed;
             bottom: 0;
@@ -103,14 +119,14 @@
             z-index: 100;
         }
 
-        /* 💡 수정된 부분: 첨부된 이미지(image_1.png)를 사용하는 새로운 마이크 이미지 버튼 스타일 */
+        /* 마이크 이미지 버튼 */
         #image-mic-btn {
             border: none;
             background-color: transparent;
             cursor: pointer;
             transition: transform 0.2s;
             width: auto;
-            max-width: 150px; /* 기본 최대 크기 */
+            max-width: 150px;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -126,7 +142,7 @@
             transform: scale(1.05);
         }
 
-        /* 듣는 중 애니메이션 (이미지 버튼에 적용) */
+        /* 듣는 중 애니메이션 */
         #image-mic-btn.listening {
             animation: blink-mic 1.2s infinite;
         }
@@ -137,12 +153,6 @@
             font-weight: bold;
             color: #666;
             height: 30px;
-        }
-
-        @keyframes blink {
-            0% { opacity: 1; transform: scale(1.05); }
-            50% { opacity: 0.6; transform: scale(1); }
-            100% { opacity: 1; transform: scale(1.05); }
         }
 
         @keyframes blink-mic {
@@ -156,8 +166,8 @@
             body { padding-top: 50px; padding-bottom: 280px; }
             #font-controls { width: 90%; gap: 20px; }
             .font-btn { font-size: 22px; padding: 12px 25px; }
-            #word-display { width: 90%; padding: 50px; min-height: 400px; }
-            #image-mic-btn { max-width: 180px; } /* 태블릿 등 넓은 화면에서 크기 조절 */
+            #word-display { width: 90%; min-height: 300px; gap: 15px; }
+            #image-mic-btn { max-width: 180px; }
             #status { font-size: 24px; margin-top: 25px; }
         }
     </style>
@@ -169,8 +179,7 @@
         <button class="font-btn" id="font-up">🔍 ➕ 크게</button>
     </div>
 
-    <div id="word-display">
-    </div>
+    <div id="word-display"></div>
     
     <div id="bottom-area">
         <div style="position: relative;"> 
@@ -182,43 +191,126 @@
     </div>
 
     <script>
-        // 글자 크기와 원고지 격자무늬를 동기화하는 자바스크립트
         let currentFontSize = 80;
         const wordDisplay = document.getElementById('word-display');
         const btnUp = document.getElementById('font-up');
         const btnDown = document.getElementById('font-down');
+        let googleSpeechRawText = ""; // 브라우저가 인식한 원본 기호를 기억하는 변수
 
-        function updateGridAndFont() {
-            const cellSize = currentFontSize + 16; 
-            const cells = wordDisplay.querySelectorAll('.cell');
-            cells.forEach(cell => {
+        // 💡 수정 2: 우리 반 맞춤법 교정 사전 (선생님께서 원하시는 단어를 아래에 자유롭게 추가하실 수 있습니다!)
+        const spellCheckDictionary = {
+            "할꺼야": "할 거야",
+            "갈꺼야": "갈 거야",
+            "되요": "돼요",
+            "안돼": "안 돼",
+            "마춤법": "맞춤법",
+            "맜있는": "맛있는",
+            "꺼에요": "거예요",
+            "거에요": "거예요",
+            "가방이": "가방이"
+        };
+
+        // 맞춤법을 검사하고 교정해주는 함수
+        function checkAndCorrectSpelling(text) {
+            let correctedText = text;
+            for (const [wrong, right] of Object.entries(spellCheckDictionary)) {
+                // 단어 교체 실행
+                const regex = new RegExp(wrong, "g");
+                correctedText = correctedText.replace(regex, right);
+            }
+            return correctedText;
+        }
+
+        // 정사각형 칸을 화면에 그려주는 함수
+        function renderCells(text) {
+            wordDisplay.innerHTML = '';
+            
+            if (text === "...") {
+                wordDisplay.textContent = "...";
+                wordDisplay.style.fontSize = currentFontSize + 'px';
+                wordDisplay.style.color = "#aaa";
+                return;
+            }
+
+            const cellSize = currentFontSize + 24;
+            
+            for (let i = 0; i < text.length; i++) {
+                const char = text[i];
+                const cell = document.createElement('span');
+                cell.classList.add('cell');
+                
+                if (char === ' ') {
+                    cell.classList.add('space');
+                } else if (['.', '?', '!'].includes(char)) {
+                    cell.classList.add('punctuation');
+                    if (char === '.') {
+                        cell.classList.add('dot-cell'); // 온점 왼쪽 아래 정렬
+                    }
+                }
+                
+                cell.textContent = char;
                 cell.style.width = `${cellSize}px`;
                 cell.style.height = `${cellSize}px`;
                 cell.style.fontSize = `${currentFontSize}px`;
-            });
+                wordDisplay.appendChild(cell);
+            }
         }
 
+        // 💡 수정 1: 온점(.)과 물음표(?)의 구분을 명확하게 다듬은 문장부호 결정 함수
+        function applyPunctuation(text, rawText) {
+            text = text.trim();
+            if (!text || text === "...") return text;
+            
+            let lastChar = text.slice(-1);
+            
+            // 이미 부호가 붙어있다면 그대로 유지
+            if (['.', '?', '!'].includes(lastChar)) return text;
+
+            // 구글 STT 원본 결과에 물음표 기호가 들어있었는지 확인 (가장 확실한 힌트)
+            const googleWantsQuestion = rawText.includes('?');
+
+            // 1학년 아이들이 자주 쓰는 의문사 패턴 정의
+            const questionKeywords = /(누가|언제|어디|무엇|뭐|어떻게|왜|몇|있어|했어|있니|했니|했나요|인가요|맞나요|가요|의|지)/;
+            const questionEndings = ['까', '니', '냐', '죠'];
+
+            // 💡 물음표(?) 조건: 구글이 질문으로 판단했거나, 문장 내에 의문사가 있거나, 의문형 어미로 끝날 때
+            if (googleWantsQuestion || text.match(questionKeywords) || questionEndings.includes(lastChar)) {
+                return text + '?';
+            }
+            
+            // 느낌표(!) 조건
+            if (text.match(/(우와|와|앗|아싸|야호|헉|짜잔|최고|정말|진짜)/)) {
+                return text + '!';
+            }
+            
+            // 그 외에는 완벽하게 온점(.) 처리
+            return text + '.';
+        }
+
+        // 크기 조절 버튼 이벤트
         btnUp.addEventListener('click', () => {
             if (currentFontSize < 150) {
                 currentFontSize += 10;
-                updateGridAndFont();
+                const currentText = Array.from(wordDisplay.querySelectorAll('.cell')).map(c => c.textContent).join('');
+                if(currentText) renderCells(currentText);
             }
         });
 
         btnDown.addEventListener('click', () => {
             if (currentFontSize > 30) {
                 currentFontSize -= 10;
-                updateGridAndFont();
+                const currentText = Array.from(wordDisplay.querySelectorAll('.cell')).map(c => c.textContent).join('');
+                if(currentText) renderCells(currentText);
             }
         });
 
-        updateGridAndFont();
+        renderCells("");
 
-        // ---------------- 음성 인식(STT) 코드 ----------------
+        // ---------------- 음성 인식(STT) 로직 ----------------
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         
         if (!SpeechRecognition) {
-            wordDisplay.innerHTML = "크롬 브라우저를<br>사용해주세요!";
+            wordDisplay.innerHTML = "크롬 브라우저를 사용해주세요!";
             document.getElementById('image-mic-btn').style.display = 'none';
         } else {
             const recognition = new SpeechRecognition();
@@ -226,7 +318,7 @@
             recognition.interimResults = true; 
             recognition.maxAlternatives = 1;
 
-            const micBtn = document.getElementById('image-mic-btn'); // 새로운 이미지 버튼 연결
+            const micBtn = document.getElementById('image-mic-btn');
             const statusDisplay = document.getElementById('status');
 
             let isListening = false;
@@ -241,15 +333,16 @@
             function resetApp() {
                 isListening = false;
                 isComplete = false;
-                wordDisplay.textContent = "...";
+                googleSpeechRawText = "";
+                renderCells("...");
                 statusDisplay.textContent = "귀를 쫑긋 세우고 있어요!";
             }
 
             recognition.onstart = function() {
                 isListening = true;
-                micBtn.classList.add('listening'); // 이미지 버튼에 애니메이션 적용
+                micBtn.classList.add('listening');
                 statusDisplay.textContent = "듣고 있어요!";
-                wordDisplay.textContent = "...";
+                renderCells("...");
             }
 
             recognition.onresult = function(event) {
@@ -257,33 +350,17 @@
                 let finalTranscript = '';
 
                 for (let i = event.resultIndex; i < event.results.length; i++) {
-                    const transcript = event.results[i][0].transcript;
                     if (event.results[i].isFinal) {
-                        finalTranscript += transcript;
+                        finalTranscript += event.results[i][0].transcript;
                     } else {
-                        interimTranscript += transcript;
+                        interimTranscript += event.results[i][0].transcript;
                     }
                 }
                 
-                // 진짜 원고지 칸 생성 로직 유지
-                wordDisplay.innerHTML = '';
-                const text = finalTranscript || interimTranscript;
-                const cellSize = currentFontSize + 16;
+                googleSpeechRawText = finalTranscript || interimTranscript;
                 
-                for (let i = 0; i < text.length; i++) {
-                    const char = text[i];
-                    const cell = document.createElement('span');
-                    cell.classList.add('cell');
-                    if (char === ' ') {
-                        cell.classList.add('space');
-                    }
-                    cell.textContent = char;
-                    cell.style.width = `${cellSize}px`;
-                    cell.style.height = `${cellSize}px`;
-                    cell.style.fontSize = `${currentFontSize}px`;
-                    wordDisplay.appendChild(cell);
-                }
-                
+                // 말하는 도중에는 맞춤법 검사 전의 텍스트를 실시간으로 렌더링
+                renderCells(googleSpeechRawText);
                 window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
             };
 
@@ -291,15 +368,31 @@
                 statusDisplay.textContent = "앗, 잘 못 들었어요. 다시 해볼까요?";
             };
 
+            // 마이크 종료(말이 끝남) 시점에 맞춤법과 문장부호를 최종 적용
             recognition.onend = function() {
                 isListening = false;
                 micBtn.classList.remove('listening');
 
                 const cells = wordDisplay.querySelectorAll('.cell');
-                if (cells.length > 0 && Array.from(cells).some(cell => cell.textContent.trim() !== "")) {
+                let currentText = Array.from(cells).map(cell => cell.textContent).join('').trim();
+
+                // 기존 문장 끝에 붙어있던 임시 기호 떼어내기
+                if (['.', '?', '!'].includes(currentText.slice(-1))) {
+                    currentText = currentText.slice(0, -1);
+                }
+
+                if (currentText && currentText !== "...") {
                     isComplete = true;
-                    // 💡 추가 수정 사항: 완료 문구를 "완료!"로 수정
                     statusDisplay.textContent = "완료!"; 
+                    
+                    // 💡 1단계: 선생님의 '우리 반 사전'을 거쳐 맞춤법 강제 교정
+                    let checkedText = checkAndCorrectSpelling(currentText);
+                    
+                    // 💡 2단계: 정밀화된 규칙으로 온점/물음표 최종 선택
+                    let finalText = applyPunctuation(checkedText, googleSpeechRawText);
+                    
+                    // 최종 화면 출력
+                    renderCells(finalText);
                 } else {
                     statusDisplay.textContent = "다시 말하기 버튼을 눌러주세요.";
                 }

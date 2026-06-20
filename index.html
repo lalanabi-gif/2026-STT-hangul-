@@ -69,14 +69,14 @@
             font-weight: bold;
         }
 
-        /* 정사각형 글자 한 칸 스타일 */
+        /* 정사각형 글자 한 칸 스타일 (문장부호 관련 스타일 모두 삭제) */
         #word-display .cell {
             display: flex;
             align-items: center;
             justify-content: center;
-            border: 3px solid #ff9999; /* 분홍색 테두리 */
-            background-color: white;   /* 흰색 배경 */
-            color: #333;               /* 진한 회색 글자 */
+            border: 3px solid #ff9999;
+            background-color: white;
+            color: #333;
             border-radius: 10px;
             aspect-ratio: 1 / 1;
             box-shadow: 0 4px 10px rgba(0,0,0,0.05);
@@ -87,21 +87,6 @@
         #word-display .cell.space {
             background-color: #e2e8f0;
             border: 3px dashed #cbd5e1;
-        }
-
-        /* 💡 수정 3: 문장 부호 칸 스타일을 일반 글자 칸과 완전히 통일 */
-        #word-display .cell.punctuation {
-            border: 3px solid #ff9999; 
-            background-color: white;
-            color: #333;
-        }
-
-        /* 온점(.) 격자 칸 내부에서 왼쪽 하단으로 배치하는 스타일 유지 */
-        #word-display .cell.dot-cell {
-            align-items: flex-end;
-            justify-content: flex-start;
-            padding-left: 15%;
-            padding-bottom: 15%;
         }
 
         /* 하단 고정 마이크 영역 */
@@ -195,9 +180,8 @@
         const wordDisplay = document.getElementById('word-display');
         const btnUp = document.getElementById('font-up');
         const btnDown = document.getElementById('font-down');
-        let googleSpeechRawText = ""; // 브라우저가 인식한 원본 기호를 기억하는 변수
 
-        // 💡 수정 2: 우리 반 맞춤법 교정 사전 (선생님께서 원하시는 단어를 아래에 자유롭게 추가하실 수 있습니다!)
+        // 우리 반 맞춤법 교정 사전
         const spellCheckDictionary = {
             "할꺼야": "할 거야",
             "갈꺼야": "갈 거야",
@@ -214,14 +198,18 @@
         function checkAndCorrectSpelling(text) {
             let correctedText = text;
             for (const [wrong, right] of Object.entries(spellCheckDictionary)) {
-                // 단어 교체 실행
                 const regex = new RegExp(wrong, "g");
                 correctedText = correctedText.replace(regex, right);
             }
             return correctedText;
         }
 
-        // 정사각형 칸을 화면에 그려주는 함수
+        // 💡 수정 1, 2, 3: 모든 문장 부호를 강제로 완전히 삭제하는 청소 함수
+        function removePunctuation(text) {
+            return text.replace(/[.,?!]/g, ''); // 마침표, 쉼표, 물음표, 느낌표를 흔적 없이 지움
+        }
+
+        // 정사각형 칸을 화면에 그려주는 함수 (문장 부호 그리는 로직 완전 삭제)
         function renderCells(text) {
             wordDisplay.innerHTML = '';
             
@@ -232,6 +220,9 @@
                 return;
             }
 
+            // 그리기 전에 혹시라도 남아있을 문장부호를 다시 한번 완벽 제거
+            text = removePunctuation(text);
+
             const cellSize = currentFontSize + 24;
             
             for (let i = 0; i < text.length; i++) {
@@ -239,52 +230,18 @@
                 const cell = document.createElement('span');
                 cell.classList.add('cell');
                 
-                if (char === ' ') {
-                    cell.classList.add('space');
-                } else if (['.', '?', '!'].includes(char)) {
-                    cell.classList.add('punctuation');
-                    if (char === '.') {
-                        cell.classList.add('dot-cell'); // 온점 왼쪽 아래 정렬
-                    }
-                }
-                
-                cell.textContent = char;
+                // 모든 칸을 똑같은 크기로 고정
                 cell.style.width = `${cellSize}px`;
                 cell.style.height = `${cellSize}px`;
                 cell.style.fontSize = `${currentFontSize}px`;
+
+                if (char === ' ') {
+                    cell.classList.add('space');
+                }
+                
+                cell.textContent = char;
                 wordDisplay.appendChild(cell);
             }
-        }
-
-        // 💡 수정 1: 온점(.)과 물음표(?)의 구분을 명확하게 다듬은 문장부호 결정 함수
-        function applyPunctuation(text, rawText) {
-            text = text.trim();
-            if (!text || text === "...") return text;
-            
-            let lastChar = text.slice(-1);
-            
-            // 이미 부호가 붙어있다면 그대로 유지
-            if (['.', '?', '!'].includes(lastChar)) return text;
-
-            // 구글 STT 원본 결과에 물음표 기호가 들어있었는지 확인 (가장 확실한 힌트)
-            const googleWantsQuestion = rawText.includes('?');
-
-            // 1학년 아이들이 자주 쓰는 의문사 패턴 정의
-            const questionKeywords = /(누가|언제|어디|무엇|뭐|어떻게|왜|몇|있어|했어|있니|했니|했나요|인가요|맞나요|가요|의|지)/;
-            const questionEndings = ['까', '니', '냐', '죠'];
-
-            // 💡 물음표(?) 조건: 구글이 질문으로 판단했거나, 문장 내에 의문사가 있거나, 의문형 어미로 끝날 때
-            if (googleWantsQuestion || text.match(questionKeywords) || questionEndings.includes(lastChar)) {
-                return text + '?';
-            }
-            
-            // 느낌표(!) 조건
-            if (text.match(/(우와|와|앗|아싸|야호|헉|짜잔|최고|정말|진짜)/)) {
-                return text + '!';
-            }
-            
-            // 그 외에는 완벽하게 온점(.) 처리
-            return text + '.';
         }
 
         // 크기 조절 버튼 이벤트
@@ -316,6 +273,8 @@
             const recognition = new SpeechRecognition();
             recognition.lang = 'ko-KR'; 
             recognition.interimResults = true; 
+            // 💡 수정 4: 아이들이 쉬었다 말해도 바로 안 꺼지도록 연속 듣기 모드 활성화
+            recognition.continuous = true; 
             recognition.maxAlternatives = 1;
 
             const micBtn = document.getElementById('image-mic-btn');
@@ -323,9 +282,14 @@
 
             let isListening = false;
             let isComplete = false;
+            let silenceTimer = null; // 💡 3초 기다림을 위한 타이머 변수
 
             micBtn.addEventListener('click', () => {
-                if (isListening) { recognition.stop(); return; }
+                if (isListening) { 
+                    clearTimeout(silenceTimer);
+                    recognition.stop(); 
+                    return; 
+                }
                 if (isComplete) { resetApp(); recognition.start(); return; }
                 recognition.start();
             });
@@ -333,7 +297,7 @@
             function resetApp() {
                 isListening = false;
                 isComplete = false;
-                googleSpeechRawText = "";
+                clearTimeout(silenceTimer);
                 renderCells("...");
                 statusDisplay.textContent = "귀를 쫑긋 세우고 있어요!";
             }
@@ -343,55 +307,55 @@
                 micBtn.classList.add('listening');
                 statusDisplay.textContent = "듣고 있어요!";
                 renderCells("...");
+
+                // 처음 마이크를 켰을 때 아무 말 안 해도 4초 후에는 꺼지도록 설정
+                silenceTimer = setTimeout(() => {
+                    if (isListening) recognition.stop();
+                }, 4000);
             }
 
             recognition.onresult = function(event) {
-                let interimTranscript = '';
-                let finalTranscript = '';
+                // 말을 할 때마다 기존 타이머를 취소 (생명 연장)
+                clearTimeout(silenceTimer);
 
-                for (let i = event.resultIndex; i < event.results.length; i++) {
-                    if (event.results[i].isFinal) {
-                        finalTranscript += event.results[i][0].transcript;
-                    } else {
-                        interimTranscript += event.results[i][0].transcript;
-                    }
+                let transcript = '';
+                // 연속 모드(continuous=true)이므로 처음부터 끝까지의 결과를 다 합침
+                for (let i = 0; i < event.results.length; i++) {
+                    transcript += event.results[i][0].transcript;
                 }
                 
-                googleSpeechRawText = finalTranscript || interimTranscript;
-                
-                // 말하는 도중에는 맞춤법 검사 전의 텍스트를 실시간으로 렌더링
-                renderCells(googleSpeechRawText);
+                // 실시간 화면 표시 (문장부호 지우고 렌더링)
+                let cleanText = removePunctuation(transcript);
+                renderCells(cleanText);
                 window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+
+                // 💡 수정 4: 말이 끝나고 '3초' 동안 아무 소리가 없으면 마이크 자동 종료
+                silenceTimer = setTimeout(() => {
+                    if (isListening) recognition.stop();
+                }, 3000); 
             };
 
             recognition.onerror = function(event) {
                 statusDisplay.textContent = "앗, 잘 못 들었어요. 다시 해볼까요?";
             };
 
-            // 마이크 종료(말이 끝남) 시점에 맞춤법과 문장부호를 최종 적용
+            // 타이머에 의해 3초가 지나거나 수동으로 껐을 때 최종 처리
             recognition.onend = function() {
                 isListening = false;
+                clearTimeout(silenceTimer);
                 micBtn.classList.remove('listening');
 
                 const cells = wordDisplay.querySelectorAll('.cell');
                 let currentText = Array.from(cells).map(cell => cell.textContent).join('').trim();
 
-                // 기존 문장 끝에 붙어있던 임시 기호 떼어내기
-                if (['.', '?', '!'].includes(currentText.slice(-1))) {
-                    currentText = currentText.slice(0, -1);
-                }
-
                 if (currentText && currentText !== "...") {
                     isComplete = true;
                     statusDisplay.textContent = "완료!"; 
                     
-                    // 💡 1단계: 선생님의 '우리 반 사전'을 거쳐 맞춤법 강제 교정
+                    // 마지막으로 맞춤법 점검 및 문장 부호 완벽 제거 확인
                     let checkedText = checkAndCorrectSpelling(currentText);
+                    let finalText = removePunctuation(checkedText);
                     
-                    // 💡 2단계: 정밀화된 규칙으로 온점/물음표 최종 선택
-                    let finalText = applyPunctuation(checkedText, googleSpeechRawText);
-                    
-                    // 최종 화면 출력
                     renderCells(finalText);
                 } else {
                     statusDisplay.textContent = "다시 말하기 버튼을 눌러주세요.";

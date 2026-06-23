@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>초1 맞춤형 말하는 한글 돋보기</title>
+    <style>
+        /* 기본 화면 설정 */
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f7f9fc;
+            font-family: 'Malgun Gothic', '맑은 고딕', sans-serif;
+            padding-top: 30px;
+            padding-bottom: 250px;
+            box-sizing: border-box;
+            overflow-x: hidden;
+        }
+
+        /* 글자 크기 조절 버튼 영역 */
+        #font-controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            width: 85%;
+            max-width: 900px;
+            justify-content: center;
+        }
+
+        .font-btn {
+            font-size: 20px;
+            font-weight: bold;
+            padding: 10px 20px;
+            background-color: white;
+            border: 2px solid #ddd;
+            border-radius: 15px;
+            cursor: pointer;
+            color: #555;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .font-btn:hover {
+            background-color: #f0f0f0;
+            transform: scale(1.05);
+            border-color: #bbb;
+        }
+
+        /* 글자 칸들이 정렬되는 영역 */
+        #word-display {
+            text-align: left;
+            min-height: 200px;
+            height: auto;
+            width: 85%;
+            max-width: 900px;
+            word-break: keep-all;
+            padding: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: flex-start;
+            font-weight: bold;
+        }
+
+        /* 정사각형 글자 한 칸 스타일 */
+        #word-display .cell {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 3px solid #ff9999;
+            background-color: white;
+            color: #333;
+            border-radius: 10px;
+            aspect-ratio: 1 / 1;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            box-sizing: border-box;
+        }
+
+        /* 띄어쓰기 칸 스타일 */
+        #word-display .cell.space {
+            background-color: #e2e8f0;
+            border: 3px dashed #cbd5e1;
+        }
+
+        /* 하단 고정 마이크 영역 */
+        #bottom-area {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: linear-gradient(to top, #f7f9fc 70%, transparent);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-bottom: 40px;
+            padding-top: 50px;
+            z-index: 100;
+        }
+
+        /* 마이크 이미지 버튼 */
+        #image-mic-btn {
+            border: none;
+            background-color: transparent;
+            cursor: pointer;
+            transition: transform 0.2s;
+            width: auto;
+            max-width: 150px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #image-mic-btn img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        #image-mic-btn:hover {
+            transform: scale(1.05);
+        }
+
+        /* 듣는 중 애니메이션 */
+        #image-mic-btn.listening {
+            animation: blink-mic 1.2s infinite;
+        }
+
+        #status {
+            margin-top: 20px;
+            font-size: 22px;
+            font-weight: bold;
+            color: #666;
+            height: 30px;
+        }
+
+        @keyframes blink-mic {
+            0% { opacity: 1; transform: scale(1.05); }
+            50% { opacity: 0.7; transform: scale(1); }
+            100% { opacity: 1; transform: scale(1.05); }
+        }
+
+        /* 반응형 디자인 미디어 쿼리 */
+        @media screen and (min-width: 1024px) {
+            body { padding-top: 50px; padding-bottom: 280px; }
+            #font-controls { width: 90%; gap: 20px; }
+            .font-btn { font-size: 22px; padding: 12px 25px; }
+            #word-display { width: 90%; min-height: 300px; gap: 15px; }
+            #image-mic-btn { max-width: 180px; }
+            #status { font-size: 24px; margin-top: 25px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="font-controls">
+        <button class="font-btn" id="font-down">🔍 ➖ 작게</button>
+        <button class="font-btn" id="font-up">🔍 ➕ 크게</button>
+    </div>
+
+    <div id="word-display"></div>
+    
+    <div id="bottom-area">
+        <div style="position: relative;"> 
+            <button id="image-mic-btn">
+                <img src="image_1.png" alt="마이크">
+            </button>
+        </div>
+        <div id="status">준비 완료!</div>
+    </div>
+
+    <script>
+        let currentFontSize = 80;
+        const wordDisplay = document.getElementById('word-display');
+        const btnUp = document.getElementById('font-up');
+        const btnDown = document.getElementById('font-down');
+
+        // 우리 반 맞춤법 교정 사전
+        const spellCheckDictionary = {
+            "할꺼야": "할 거야",
+            "갈꺼야": "갈 거야",
+            "되요": "돼요",
+            "안돼": "안 돼",
+            "마춤법": "맞춤법",
+            "맜있는": "맛있는",
+            "꺼에요": "거예요",
+            "거에요": "거예요",
+            "가방이": "가방이"
+        };
+
+        // 맞춤법을 검사하고 교정해주는 함수
+        function checkAndCorrectSpelling(text) {
+            let correctedText = text;
+            for (const [wrong, right] of Object.entries(spellCheckDictionary)) {
+                const regex = new RegExp(wrong, "g");
+                correctedText = correctedText.replace(regex, right);
+            }
+            return correctedText;
+        }
+
+        // 💡 핵심 수정: 한글, 영어, 숫자, 띄어쓰기를 제외한 모든 기호를 완벽하게 삭제하는 강력한 필터
+        function removePunctuation(text) {
+            // 정규식을 사용하여 허용된 문자 외에는 모조리 지워버립니다. 빈칸 오류도 함께 해결됩니다.
+            return text.replace(/[^\uAC00-\uD7A3\u3131-\u318Ea-zA-Z0-9\s]/g, ''); 
+        }
+
+        // 정사각형 칸을 화면에 그려주는 함수
+        function renderCells(text) {
+            wordDisplay.innerHTML = '';
+            
+            if (text === "...") {
+                wordDisplay.textContent = "...";
+                wordDisplay.style.fontSize = currentFontSize + 'px';
+                wordDisplay.style.color = "#aaa";
+                return;
+            }
+
+            // 그리기 직전에 모든 기호를 다시 한번 완벽하게 날려버립니다.
+            text = removePunctuation(text);
+
+            const cellSize = currentFontSize + 24;
+            
+            for (let i = 0; i < text.length; i++) {
+                const char = text[i];
+                const cell = document.createElement('span');
+                cell.classList.add('cell');
+                
+                cell.style.width = `${cellSize}px`;
+                cell.style.height = `${cellSize}px`;
+                cell.style.fontSize = `${currentFontSize}px`;
+
+                if (char === ' ') {
+                    cell.classList.add('space');
+                }
+                
+                cell.textContent = char;
+                wordDisplay.appendChild(cell);
+            }
+        }
+
+        // 크기 조절 버튼 이벤트
+        btnUp.addEventListener('click', () => {
+            if (currentFontSize < 150) {
+                currentFontSize += 10;
+                const currentText = Array.from(wordDisplay.querySelectorAll('.cell')).map(c => c.textContent).join('');
+                if(currentText) renderCells(currentText);
+            }
+        });
+
+        btnDown.addEventListener('click', () => {
+            if (currentFontSize > 30) {
+                currentFontSize -= 10;
+                const currentText = Array.from(wordDisplay.querySelectorAll('.cell')).map(c => c.textContent).join('');
+                if(currentText) renderCells(currentText);
+            }
+        });
+
+        renderCells("");
+
+        // ---------------- 음성 인식(STT) 로직 ----------------
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        
+        if (!SpeechRecognition) {
+            wordDisplay.innerHTML = "크롬 브라우저를 사용해주세요!";
+            document.getElementById('image-mic-btn').style.display = 'none';
+        } else {
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'ko-KR'; 
+            recognition.interimResults = true; 
+            // 3초 기다림 제거로 인해 기본 모드로 작동 (말 끊기면 즉시 종료)
+            recognition.maxAlternatives = 1;
+
+            const micBtn = document.getElementById('image-mic-btn');
+            const statusDisplay = document.getElementById('status');
+
+            let isListening = false;
+            let isComplete = false;
+
+            // 중복 버그 방지 변수
+            let finalTranscript = ''; 
+            let lastFinalChunk = '';  
+
+            micBtn.addEventListener('click', () => {
+                if (isListening) { 
+                    recognition.stop(); 
+                    return; 
+                }
+                if (isComplete) { resetApp(); recognition.start(); return; }
+                recognition.start();
+            });
+
+            function resetApp() {
+                isListening = false;
+                isComplete = false;
+                finalTranscript = ''; 
+                lastFinalChunk = '';  
+                renderCells("...");
+                statusDisplay.textContent = "귀를 쫑긋 세우고 있어요!";
+            }
+
+            recognition.onstart = function() {
+                isListening = true;
+                finalTranscript = ''; 
+                lastFinalChunk = '';
+                micBtn.classList.add('listening');
+                statusDisplay.textContent = "듣고 있어요!";
+                renderCells("...");
+            }
+
+            recognition.onresult = function(event) {
+                let interimTranscript = '';
+
+                // 중복 결과물 필터링
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    let chunk = event.results[i][0].transcript;
+                    
+                    if (event.results[i].isFinal) {
+                        if (chunk.trim() !== lastFinalChunk.trim()) {
+                            finalTranscript += chunk;
+                            lastFinalChunk = chunk; 
+                        }
+                    } else {
+                        interimTranscript += chunk;
+                    }
+                }
+                
+                let rawText = finalTranscript + interimTranscript;
+                // 실시간 화면 표시할 때도 기호 완벽 삭제
+                let cleanText = removePunctuation(rawText);
+                
+                renderCells(cleanText);
+                window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+            };
+
+            recognition.onerror = function(event) {
+                statusDisplay.textContent = "앗, 잘 못 들었어요. 다시 해볼까요?";
+            };
+
+            recognition.onend = function() {
+                isListening = false;
+                micBtn.classList.remove('listening');
+
+                const cells = wordDisplay.querySelectorAll('.cell');
+                let currentText = Array.from(cells).map(cell => cell.textContent).join('').trim();
+
+                if (currentText && currentText !== "...") {
+                    isComplete = true;
+                    statusDisplay.textContent = "완료!"; 
+                    
+                    let checkedText = checkAndCorrectSpelling(currentText);
+                    
+                    // 마지막 렌더링 시 여백(trim)과 부호 삭제를 동시에 적용
+                    let finalText = removePunctuation(checkedText).trim();
+                    
+                    renderCells(finalText);
+                } else {
+                    statusDisplay.textContent = "다시 말하기 버튼을 눌러주세요.";
+                }
+            };
+        }
+    </script>
+</body>
+</html>
